@@ -86,20 +86,18 @@ n = length(data_analysis$Y)
 
 # General functions for clustering
 
-split_4quantile <- function(x_matrix) {
-  seq_X = c(min(x_matrix), quantile(x_matrix, c(0.25, 0.5, 0.75)), max(x_matrix))
-  X_weights = cbind(x * I(x < seq_X[2]),
-                    x * I(x < seq_X[3] & x > seq_X[2]),
-                    x * I(x < seq_X[4] & x > seq_X[3]),
-                    x * I(x > seq_X[4]))
-  X_weights = (X_weights != 0) * (X_weights) +
-    (X_weights == 0) * matrix(rnorm(prod(dim(X_weights)), 0, 0.003),
-                              ncol = dim(X_weights)[2],
-                              nrow = dim(X_weights)[1])
+split_4quantile<-function(x_matrix){
+  seq_X=c(min(x_matrix),quantile(x_matrix,c(0.25,0.5,0.75)), max(x_matrix))
+  X_weights=cbind(x_matrix*I(x_matrix<seq_X[2]),
+                  x_matrix*I(x_matrix<seq_X[3] & x_matrix>seq_X[2]),
+                  x_matrix*I(x_matrix<seq_X[4] & x_matrix>seq_X[3]),
+                  x_matrix*I(x_matrix>seq_X[4]))
+  X_weights=(X_weights!=0)*(X_weights)+
+    (X_weights==0)*matrix(rnorm(prod(dim(X_weights)),0,0.003),
+                          ncol=dim(X_weights)[2],nrow=dim(X_weights)[1])
   
   return(X_weights)
 }
-
 
 ###################################################################################
 
