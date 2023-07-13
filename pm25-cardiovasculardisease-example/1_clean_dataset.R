@@ -5,7 +5,7 @@
 # libraries
 rm(list = ls())
 library(data.table)
-library(CondIndTests)
+#library(CondIndTests)
 setwd('/n/dominici_nsaph_l3/projects/pm25-cardiovasculardisease-bnp/')
 
 # load Giorgia's functions
