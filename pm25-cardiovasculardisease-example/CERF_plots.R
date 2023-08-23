@@ -5,7 +5,7 @@ load("~/chains_APPLICATION.RData")
 ####################################################
 
 
-pdf("results_medan.pdf",width=9, height=7)
+pdf("results_median.pdf",width=9, height=7)
 par(mfrow = c(1, 1))
 plot(
   data_analysis$X,
