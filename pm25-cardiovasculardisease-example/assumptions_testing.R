@@ -1,3 +1,10 @@
+################################################################################
+# ----    Check  the conditional independence assumptions A3-A5 and the 
+# ----    association assumptions A6 -A7 required by our BNP-NC method 
+################################################################################
+
+
+
 # Install and load the 'dagitty' package
 library(dagitty)
 
@@ -5,8 +12,10 @@ load(
   "/n/dominici_nsaph_l3/Lab/projects/pm25-cardiovasculardisease-bnp/data_allariables_cleaned.RData"
 )
 
+#log transform variable PctblPvt2013 because the original scale does not satisfy 
+# our normality assumption on variables
 data_clean$logPctblPvt2013 <- log(data_clean$PctblPvt2013 +1e10-8)
-data_clean2 <- data_clean[, c(
+data_clean <- data_clean[, c(
   "Exposure",
   "PctHighSchool",
   "PctWhite",
@@ -57,27 +66,27 @@ res <- res[order(abs(res$estimate)), ]
 plotLocalTestResults(tail(res, 30))
 print(res)
 
-# check assumptions
+# check assumptions A3-A7
 
 # A3 about Z
   round(ciTest("PctOccupied",
                "lograte",
                c("logMedHInc00_13","Exposure"),
-               data_clean2,
+               data_clean,
                type = "cis.loess", 
                R = 5000), 5)
 # A4 about W
 round(ciTest("PctOwnHs2013",
              "Exposure",
              c("logMedHInc00_13"),
-             data_clean2,
+             data_clean,
              type = "cis.loess", 
              R = 5000), 5)
 # A5
   round(ciTest("PctOwnHs2013",
        "PctOccupied",
        "logMedHInc00_13",
-       data_clean2,
+       data_clean,
        type = "cis.loess", 
        R = 5000),5)
 
@@ -85,7 +94,7 @@ round(ciTest("PctOwnHs2013",
   round(ciTest("PctOwnHs2013",
                "logMedHInc00_13",
                NULL,
-               data_clean2,
+               data_clean,
                type = "cis", 
                R = 5000),5)
   
@@ -93,9 +102,7 @@ round(ciTest("PctOwnHs2013",
   round(ciTest("PctOccupied",
                "logMedHInc00_13",
                "Exposure",
-               data_clean2,
+               data_clean,
                type = "cis", 
                R = 5000),5)
   
-
-
