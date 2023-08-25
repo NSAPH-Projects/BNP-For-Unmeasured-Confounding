@@ -31,18 +31,30 @@ variability_bound<- function(data_sim,medians_x,medians_smooth,funct_int,title,n
   DB=as.data.frame(cbind(Treatment=rep(points_x_i, each=sample),
                          Outcome=c(medians_smooth)))
   
-  pdf(paste0("plot_",title,".pdf"),width=6, height=5)
+  pdf(paste0("plot_",title,".pdf"),width=6, height=6)
   gg<-ggplot(DB, aes(x=Treatment, y= Outcome)) + 
     geom_fan() + 
     geom_line(aes(rep(points_x_i,sample), rep(apply(medians_smooth,2,median),sample)),
               size=1, col="#0C2AE8") +
     geom_line(aes(rep(points_x_i,sample), rep(points_y,sample)),
               size=0.7, col="red") +
-    theme_minimal()+ 
+    theme(panel.background = element_rect(fill='white'),
+          plot.background = element_rect(fill ="white"),
+          #panel.grid.minor = element_line(color = "grey"),
+          axis.title = element_text(size=14),
+          legend.text=element_text(size=10),
+          legend.title = element_text(size=12),
+          plot.title = element_text(hjust = 0.5),
+          axis.text.x=element_text(size=14),
+          axis.text.y=element_text(size=14),
+          title =element_text(size=14),
+          legend.background = element_rect(fill='transparent'),
+          panel.grid.major = element_line(color = "grey",size = 0.1))+
     scale_fill_gradient2(low="#0C2AE8", high="#DCF3F5", mid="#59C7FF", 
-                         midpoint=0.5) +
-    annotate("text", x=points_x_i[20], y=max(points_y,medians_smooth), 
-             label=paste0("Scenario ",num,""), size=4.5)
+                         midpoint=0.5, name="C.I.") +
+    #annotate("text", x=points_x_i[20], y=max(points_y,medians_smooth), 
+    #         label=paste0("Scenario ",num,""), size=5)+
+    ggtitle(paste0("Scenario ",num,""))
   print(gg)
   dev.off()
 }
