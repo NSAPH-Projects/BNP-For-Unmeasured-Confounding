@@ -1,5 +1,9 @@
-DDP_ADJ <- function(s_seed = 1, X_tilde, X_W_reg,
+DDP_ADJ <- function(s_seed = 1,
+                    X_tilde, 
+                    X_W_reg,
                     X_split_method,
+                    probs = NULL, 
+                    pts = NULL, 
                     R = R,
                     R_burnin,
                     n_group,
@@ -8,7 +12,13 @@ DDP_ADJ <- function(s_seed = 1, X_tilde, X_W_reg,
   set.seed(s_seed)
   dim_REG = dim(X_tilde)[2]
   dim_W = dim(X_W_reg)[2]
-  X_weights = X_split_method(data_analysis$X)
+  if (X_split_method == "split_quantile") {
+    X_weights = split_quantile(data_analysis$X, probs = probs)
+  } else if (X_split_method == "split_at_fixed_pt"){
+    X_weights = split_at_fixed_pt(data_analysis$X, pts = pts)
+  } else{
+    X_weights = split_4quantile(data_analysis$X)
+  }
   
   #prior
   alpha_mu = rep(0, dim_REG)
@@ -230,11 +240,23 @@ DDP_ADJ <- function(s_seed = 1, X_tilde, X_W_reg,
 }
 
 
-curve_ADJ <- function(x, post_chain, X_tilde, 
+curve_ADJ <- function(x, 
+                      post_chain, 
+                      X_tilde, 
                       x_split_method,
+                      probs = NULL, 
+                      pts = NULL, 
                       data_analysis,
                       n_group) {
-  X_weights = x_split_method(data_analysis$X, x)
+
+  if (x_split_method == "split_quantile_x") {
+    X_weights = split_quantile_x(data_analysis$X, x, probs = probs)
+  } else if (x_split_method == "split_at_fixed_pt_x"){
+    X_weights = split_at_fixed_pt_x(data_analysis$X, x, pts = pts)
+  } else{
+    X_weights = split_4quantile_x(data_analysis$X, x)
+  }
+  
   dim_Xw = dim(X_weights)[2]
   dim_REG = dim(X_tilde)[2]
   
@@ -264,10 +286,4 @@ curve_ADJ <- function(x, post_chain, X_tilde,
   #return(quantile(values, prob=0.5, na.rm=TRUE))
   return(values)
 }
-
-
-
-
-
-
 

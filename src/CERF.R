@@ -6,18 +6,24 @@
 #                  W when U is masked                                          ---
 ###################################################################################
 
-source("BNP_NC.R")
-source("BNP_NoAdj.R")
-source("helper.R")
+source("src/BNP_NC.R")
+source("src/BNP_NoAdj.R")
+source("src/helper.R")
 
 cerf <- function(data, 
                  # a dataframe including columns of exposure X, outcome Y, 
                  #  confounder U, negative control exposure Z, and negative 
                  #  control outcome W
-                 X_split_method,
+                 X_split_method = "split_4quantile",
                  # how we divide the training data of X when fitting the model
-                 x_split_method,
+                 x_split_method = "split_4quantile_x",
                  # how we divide the testing data of x when applying the model
+                 probs = NULL, 
+                 # a vector of values between [0,1], needed when split_quantile is
+                 # called as x_split method
+                 pts = NULL, 
+                 # a vector of values, needed when split_at_fixed_pt is called as 
+                 # x_split method
                  n_group = 10,
                  # max number of groups
                  R = 1000,
@@ -37,6 +43,8 @@ cerf <- function(data,
     s_seed = s_seed,
     X_tilde_YX,
     X_split_method = X_split_method,
+    probs = probs, 
+    pts = pts, 
     R = R,
     R_burnin = R_burnin,
     n_group = n_group,
@@ -54,6 +62,8 @@ cerf <- function(data,
     s_seed = s_seed, 
     X_tilde_YXU,
     X_split_method = X_split_method,
+    probs = probs, 
+    pts = pts, 
     R = R,
     R_burnin = R_burnin,
     n_group = n_group,
@@ -73,6 +83,8 @@ cerf <- function(data,
     X_tilde_adj,
     X_tilde_adj,
     X_split_method = X_split_method,
+    probs = probs, 
+    pts = pts, 
     R = R,
     R_burnin = R_burnin,
     n_group = n_group,
@@ -96,6 +108,8 @@ cerf <- function(data,
       post_chain = model_YX,
       X_tilde = X_tilde_YX,
       x_split_method = x_split_method,
+      probs = probs, 
+      pts = pts, 
       data = data,
       n_group = n_group 
     ))
@@ -114,6 +128,8 @@ cerf <- function(data,
       post_chain = model_YXU,
       X_tilde = X_tilde_YXU,
       x_split_method = x_split_method,
+      probs = probs, 
+      pts = pts, 
       data = data,
       n_group = n_group 
     ))
@@ -133,6 +149,8 @@ cerf <- function(data,
       post_chain = model_adj,
       X_tilde = X_tilde_adj,
       x_split_method = x_split_method,
+      probs = probs, 
+      pts = pts, 
       data = data,
       n_group = n_group 
     ))
@@ -144,28 +162,6 @@ cerf <- function(data,
     "normal",
     bandwidth = 0.5
   )$y
-  
-  #par(mfrow = c(1, 1))
-  #plot(
-  #  data$X,
-  #  data$Y,
-  #  pch = 19,
-  #  cex = 0.3,
-  #  col = 'dark grey',
-  #  xlab = "treatment: X",
-  #  ylab = "outcome: Y",
-  #  ylim = c(-3.5,-1.8)
-  #)
-  #lines(points_x_i, smooth_YX, col = rainbow(7)[1], lwd = 2)
-  #lines(points_x_i, smooth_YXU, col = rainbow(7)[3], lwd = 2)
-  #lines(points_x_i, smooth_adj, col = rainbow(7)[6], lwd = 2)
-  #legend(
-  #  "topright",
-  #  legend = c("YX", "YXU", "adj"),
-  #  col = rainbow(7)[c(1, 3, 6)],
-  #  lwd = 2
-  #)
-  
   return(list(points_YX=points_YX,
               points_YXU=points_YXU,
               points_adj=points_adj,

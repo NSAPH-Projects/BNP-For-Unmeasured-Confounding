@@ -1,11 +1,21 @@
-DDP_NOadj <- function(s_seed = 1, X_tilde, X_split_method,
+DDP_NOadj <- function(s_seed = 1,
+                      X_tilde,
+                      X_split_method,
+                      probs = NULL,
+                      pts = NULL,
                       R ,
                       R_burnin ,
                       n_group ,
                       n,
                       data_analysis) {
   set.seed(s_seed)
-  X_weights = X_split_method(data_analysis$X)
+  if (X_split_method == "split_quantile") {
+    X_weights = split_quantile(data_analysis$X, probs = probs)
+  } else if (X_split_method == "split_at_fixed_pt") {
+    X_weights = split_at_fixed_pt(data_analysis$X, pts = pts)
+  } else{
+    X_weights = split_4quantile(data_analysis$X) # default is quartile
+  }
   dim_REG = dim(X_tilde)[2]
   
   #prior
@@ -59,8 +69,6 @@ DDP_NOadj <- function(s_seed = 1, X_tilde, X_split_method,
   post_intercept = matrix(NA, nrow = n_group, ncol = R)
   
   for (r in 1:R) {
-    
-    
     # ----- model for Y given variables : ----
     
     #mu_Q
@@ -92,13 +100,13 @@ DDP_NOadj <- function(s_seed = 1, X_tilde, X_split_method,
     check_q = sapply(1:(n_group - 1), function(l)
       length(Q[K >= l, l]))
     v_eta = lapply(which(check_q > 3), function(l)
-      1 / eta_prior[2] + t(X_weights[K >= l, ]) %*% X_weights[K >= l, ])
+      1 / eta_prior[2] + t(X_weights[K >= l,]) %*% X_weights[K >= l,])
     m_eta = sapply(which(check_q > 3), function(l)
       eta_prior[1] / eta_prior[2] +
-        t(X_weights[K >= l, ]) %*% Q[K >= l, l] / gamma_y[l])
+        t(X_weights[K >= l,]) %*% Q[K >= l, l] / gamma_y[l])
     
     if (any(check_q < 4)) {
-      for (l in which(check_q == 1 | check_q == 2| check_q == 3)) {
+      for (l in which(check_q == 1 | check_q == 2 | check_q == 3)) {
         v_eta[[l]] = diag(dim(X_weights)[2]) / eta_prior[2]
         m_eta = cbind(m_eta, rep(eta_prior[1] / eta_prior[2], dim(X_weights)[2]))
       }
@@ -108,7 +116,9 @@ DDP_NOadj <- function(s_seed = 1, X_tilde, X_split_method,
                                                   function(l)
                                                     rmvnorm(1, solve(v_eta[[l]]) %*% m_eta[, l]))
     eta[, which(table_Ki[-n_group] == 0)] = rnorm(length(which(table_Ki[-n_group] ==
-                                                                 0)) * dim(X_weights)[2], eta_prior[1], sqrt(eta_prior[2]))
+                                                                 0)) * dim(X_weights)[2],
+                                                  eta_prior[1],
+                                                  sqrt(eta_prior[2]))
     
     
     #tau ( recursive weigths in the mixture )
@@ -133,31 +143,31 @@ DDP_NOadj <- function(s_seed = 1, X_tilde, X_split_method,
     
     tau = tau_prov / apply(tau_prov, 1, sum)
     for (i in which(is.na(tau[, 1]))) {
-      tau[i, ] = 1 / n_group
+      tau[i,] = 1 / n_group
     }
     
     #K
     K = sapply(1:n, function(i)
-      (1:n_group) %*% rmultinom(1, 1, tau[i, ]))
+      (1:n_group) %*% rmultinom(1, 1, tau[i,]))
     table_Ki = rep(0, n_group)
     table_Ki[sort(unique(K))] = table(K)
     
     #alpha + gamma_y ( parameters of the mean + variance in each cluster of the distribution of Y|-- )
     for (g_k in 1:n_group) {
       if (length(which(K == g_k)) == 1) {
-        V = diag(dim_REG) / alpha_sigma + t(t(X_tilde[K == g_k, ])) %*% t(X_tilde[K ==
-                                                                                    g_k, ]) / gamma_y[g_k]
-        M = alpha_mu / alpha_sigma + t(t(X_tilde[K == g_k, ])) %*% t(data_analysis$Y[K ==
-                                                                                       g_k]) / gamma_y[g_k]
+        V = diag(dim_REG) / alpha_sigma + t(t(X_tilde[K == g_k,])) %*% t(X_tilde[K ==
+                                                                                   g_k,]) / gamma_y[g_k]
+        M = alpha_mu / alpha_sigma + t(t(X_tilde[K == g_k,])) %*% t(data_analysis$Y[K ==
+                                                                                      g_k]) / gamma_y[g_k]
       } else{
-        V = diag(dim_REG) / alpha_sigma + t(X_tilde[K == g_k, ]) %*% X_tilde[K ==
-                                                                               g_k, ] / gamma_y[g_k]
-        M = alpha_mu / alpha_sigma + t(X_tilde[K == g_k, ]) %*% data_analysis$Y[K ==
-                                                                                  g_k] / gamma_y[g_k]
+        V = diag(dim_REG) / alpha_sigma + t(X_tilde[K == g_k,]) %*% X_tilde[K ==
+                                                                              g_k,] / gamma_y[g_k]
+        M = alpha_mu / alpha_sigma + t(X_tilde[K == g_k,]) %*% data_analysis$Y[K ==
+                                                                                 g_k] / gamma_y[g_k]
       }
       alpha[, g_k] = t(rmvnorm(1, solve(V) %*% M, solve(V)))
       
-      G = sum((data_analysis$Y[K == g_k] - X_tilde[K == g_k, ] %*% (alpha[, g_k])) ^
+      G = sum((data_analysis$Y[K == g_k] - X_tilde[K == g_k,] %*% (alpha[, g_k])) ^
                 2)
       gamma_y[g_k] = rinvgamma(1, gamma_y_prior[1] + (sum(K == g_k)) / 2, gamma_y_prior[2] +
                                  G / 2)
@@ -165,14 +175,14 @@ DDP_NOadj <- function(s_seed = 1, X_tilde, X_split_method,
     
     
     #beta_x + intercept
-    beta_x = alpha[2, ]
+    beta_x = alpha[2,]
     if (dim_REG < 3) {
       intercept = sapply(1:n_group, function(g)
         alpha[1, g])
     } else{
       intercept = sapply(1:n_group, function(g)
         alpha[1, g] +
-          apply(t(t(X_tilde[, -c(1, 2)])), 2, mean) %*% (alpha[-c(1, 2), g]))
+          apply(t(t(X_tilde[,-c(1, 2)])), 2, mean) %*% (alpha[-c(1, 2), g]))
     }
     
     
@@ -199,23 +209,33 @@ DDP_NOadj <- function(s_seed = 1, X_tilde, X_split_method,
   )
 }
 
-curve_NOadj <- function(x, post_chain, X_tilde, 
-                        x_split_method, 
+curve_NOadj <- function(x,
+                        post_chain,
+                        X_tilde,
+                        x_split_method,
+                        probs = NULL,
+                        pts = NULL,
                         data_analysis ,
                         n_group) {
-  X_weights = x_split_method(data_analysis$X, x)
+  if (x_split_method == "split_quantile_x") {
+    X_weights = split_quantile_x(data_analysis$X, x, probs = probs)
+  } else if (x_split_method == "split_at_fixed_pt_x") {
+    X_weights = split_at_fixed_pt_x(data_analysis$X, x, pts = pts)
+  } else{
+    X_weights = split_4quantile_x(data_analysis$X, x)
+  }
   dim_Xw = dim(X_weights)[2]
   dim_REG = dim(X_tilde)[2]
   
   c_eta_X = pnorm(cbind(t(X_weights %*% (
-    post_chain$post_eta[1:dim_Xw, ]
+    post_chain$post_eta[1:dim_Xw,]
   )),
   t(X_weights %*% (
-    post_chain$post_eta[(dim_Xw + 1):(dim_Xw * 2), ]
+    post_chain$post_eta[(dim_Xw + 1):(dim_Xw * 2),]
   ))))
   for (g in 3:(n_group - 1)) {
     c_eta_X = cbind(c_eta_X, t(pnorm(X_weights %*% (
-      post_chain$post_eta[((g - 1) * dim_Xw + 1):(g * dim_Xw), ]
+      post_chain$post_eta[((g - 1) * dim_Xw + 1):(g * dim_Xw),]
     ))))
   }
   c_eta_X = cbind(c_eta_X, 1)
@@ -227,16 +247,16 @@ curve_NOadj <- function(x, post_chain, X_tilde,
   
   clusters = apply(t, 1, which.max)
   
-  beta = post_chain$post_alpha[seq(2, dim(post_chain$post_alpha)[1], dim_REG), ]
-  intercept = post_chain$post_alpha[-seq(2, dim(post_chain$post_alpha)[1], dim_REG), ]
+  beta = post_chain$post_alpha[seq(2, dim(post_chain$post_alpha)[1], dim_REG),]
+  intercept = post_chain$post_alpha[-seq(2, dim(post_chain$post_alpha)[1], dim_REG),]
   
   if (dim_REG < 3) {
     values = sapply(1:length(clusters), function(c)
       intercept[clusters[c], c] + x %*% beta[clusters[c], c])
   } else{
     values = sapply(1:length(clusters), function(c)
-      t(apply(X_tilde[, -2], 2, mean)) %*% intercept[((clusters[c] - 1) *
-                                                        (dim_REG - 1) + 1):(clusters[c] * (dim_REG - 1)), c] +
+      t(apply(X_tilde[,-2], 2, mean)) %*% intercept[((clusters[c] - 1) *
+                                                       (dim_REG - 1) + 1):(clusters[c] * (dim_REG - 1)), c] +
         x %*% beta[clusters[c], c])
   }
   
