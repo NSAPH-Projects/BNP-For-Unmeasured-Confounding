@@ -18,5 +18,5 @@ In the the *pm25-cardiovasculardisease-exposure* folder, we apply this new estim
 We welcome contributions and feedback about BNP-For-Unmeasured-Confounding. If you have any suggestions, please open an issue or submit a pull request.
 
 ### Documentation
-The companion paper is hosted at (https://arxiv.org/abs/2309.02631)https://arxiv.org/abs/2309.02631
+The companion paper is hosted at [[https://arxiv.org/abs/2309.02631]]{https://arxiv.org/abs/2309.02631}
 
