@@ -12,12 +12,11 @@ In the *simulation* folder, we assess the performance of this method by simulati
 
 In the the *pm25-cardiovasculardisease-exposure* folder, we apply this new estimation procedure to adjust for a potential unmeasured confounder when evaluating the relationship between long-term exposure to ambient $PM_{2.5}$ and cardiovascular hospitalization rates among the elderly in the continental U.S.
 
-### Getting started
-...
+
 
 ### Contact
 We welcome contributions and feedback about BNP-For-Unmeasured-Confounding. If you have any suggestions, please open an issue or submit a pull request.
 
 ### Documentation
-The companion paper is hosted at ...
+The companion paper is hosted at [...](https://arxiv.org/abs/2309.02631)https://arxiv.org/abs/2309.02631
 
