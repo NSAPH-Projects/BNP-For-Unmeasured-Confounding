@@ -1,39 +1,20 @@
 # gibbs sampler used in simulations section
-DDP_Y_4 <- function(c, data_sim, split_function) {
-  # ------   preparing variables   ------
-  
-  # data
-  data_sim = data_sim[[c]]
+DDP_Y <- function(data_sim) {
   n = length(data_sim$X)
+  
   X_tilde = cbind(rep(1, n), data_sim$X, data_sim$Z)
-  X_weights = split_function(data_sim$X)
-  
-  # ------   hyperparameters   -----
-  
-  # alpha = parameters of the regression mean in the components of Y|X,Z mixture
-  # mu(=mean) and sigma(=var) for the normal prior for alpha
+  #X_weights=cbind(rep(1,n),data_sim$X-mean(data_sim$X))
+  X_weights = cbind(rep(1, n), data_sim$X)
+  #prior
   alpha_mu = c(0, 0, 0)
   alpha_sigma = 1
-  
-  # delta = parameters of the mean in the distribution of W|X,Z
   delta_mu = c(0, 0, 0)
   delta_sigma = 1
-  
-  # parameters for gamma_y \sim InvGamma
-  # gamma_y = variance of the components of Y|X,Z mixture
   gamma_y_prior = c(1, 0.5)
-  
-  # parameters for gamma_w \sim InvGamma
-  # gamma_w = variance of the distribution of W|X,Z
   gamma_w_prior = c(2, 2)
-  
-  # eta's iperparameters
-  # eta = parameters in the probit regression in the weights
   eta_prior = c(0, 5)
   
-  # ------   initialitation   -----
-  
-  # parameters
+  #initialization
   alpha = matrix(rep(rmvnorm(
     1, alpha_mu * rep(1, 3), alpha_sigma * diag(3)
   ), n_group),
@@ -41,11 +22,9 @@ DDP_Y_4 <- function(c, data_sim, split_function) {
   delta = rnorm(3, delta_mu, delta_sigma)
   gamma_y = rep(rinvgamma(1, gamma_y_prior[1], gamma_y_prior[2]), n_group)
   gamma_w = rinvgamma(1, gamma_w_prior[1], gamma_w_prior[2])
-  eta = matrix(
-    rnorm((n_group - 1) * 2, eta_prior[1], eta_prior[2]),
-    ncol = n_group - 1,
-    nrow = dim(X_weights)[2]
-  )
+  eta = matrix(rnorm((n_group - 1) * 2, eta_prior[1], eta_prior[2]),
+               ncol = n_group - 1,
+               nrow = 2)
   eta_X = pnorm(cbind(X_weights %*% (eta[, 1]), X_weights %*% (eta[, 2])))
   for (g_k in 3:(n_group - 1)) {
     eta_X = cbind(eta_X, pnorm(X_weights %*% (eta[, g_k])))
@@ -63,18 +42,16 @@ DDP_Y_4 <- function(c, data_sim, split_function) {
   }
   tau = tau_prov / apply(tau_prov, 1, sum)
   
-  # cluster allocation variables
+  #K=sapply(1:n, function(i) (1:n_group)%*%rmultinom(1,1,tau[i,]))
+  #K=apply(tau, 1, which.max)
   K = sample(1:n_group, n, replace = TRUE)
   table_Ki = rep(0, n_group)
   table_Ki[sort(unique(K))] = table(K)
-  # latent variable for augmentation scheme
+  
   Q = matrix(NA, nrow = n, ncol = n_group - 1)
-  # causal effect parameter
   beta_x = rep(0, n_group)
   
-  # ------   saving informations   -----
-  
-  # empty matrix where save all the informations for each iteration
+  #chains
   post_alpha = matrix(NA, nrow = n_group * 3, ncol = R)
   post_delta = matrix(NA, nrow = 3, ncol = R)
   post_gamma_y = matrix(NA, nrow = n_group, ncol = R)
@@ -82,14 +59,31 @@ DDP_Y_4 <- function(c, data_sim, split_function) {
   K_all = matrix(NA, nrow = n, ncol = R)
   post_beta_x = matrix(NA, nrow = n_group, ncol = R)
   post_intercept = matrix(NA, nrow = n_group, ncol = R)
-  post_eta = matrix(NA, nrow = (n_group - 1) * (dim(X_weights)[2]), ncol =
-                      R)
+  post_eta = matrix(NA, nrow = (n_group - 1) * 2, ncol = R)
+  
+  # compute the mode for the clusters partition
+  moda <- function(v) {
+    as.numeric(names(which.max(table(v))))
+  }
+  
+  # compute posterior estimation for beta_x + intercept for each cluster (given the partition)
+  post_beta_x_intercept <- function(partition) {
+    gg = sort(unique(partition))
+    post_parameters = matrix(NA, ncol = length(gg), nrow = 2)
+    for (cluster in gg) {
+      units = which(partition == cluster)
+      post_parameters[2, cluster] = mean(sapply(units, function(x)
+        mean(
+          sapply(R_burnin:R, function(r)
+            post_beta_x[K_all[partition[x], r], r])
+        )))
+      post_parameters[1, cluster] = mean(data_sim$Y[units] - post_parameters[2, cluster] *
+                                           data_sim$X[units])
+    }
+    return(post_parameters)
+  }
   
   for (r in 1:R) {
-    #######################################################
-    # -----  estimation parameter for W|X,Z model  ------
-    #######################################################
-    
     #delta  ( parameters of the mean in the distribution of W|X,Z )
     V_delta = diag(3) / delta_sigma + t(X_tilde) %*% X_tilde / gamma_w
     m_delta = delta_mu / delta_sigma + t(X_tilde) %*% data_sim$W / gamma_w
@@ -100,16 +94,10 @@ DDP_Y_4 <- function(c, data_sim, split_function) {
     gamma_w = rinvgamma(1, gamma_w_prior[1] + n / 2, gamma_w_prior[2] +
                           g_w / 2)
     
-    #######################################################
-    # -----  estimation parameter for Y|X,Z model  ------
-    #######################################################
-    # ---- 1: Mixture Component Specific Parameters  ----
-    #######################################################
-    
     #for compute eta (regression parameters in the weights)
     # we need to compute mu_Q and Q
     
-    # mu_Q: mean for the gaussian variable Q
+    #mu_Q
     mu_Q = cbind((tau[, 1]), (tau[, 2] / (1 - tau[, 1])))
     if (n_group > 3) {
       mu_Q = cbind(mu_Q, sapply(3:(n_group - 1), function(l)
@@ -123,7 +111,7 @@ DDP_Y_4 <- function(c, data_sim, split_function) {
     mu_Q = mu_Q - 9.9e-15 * (mu_Q > (1 - 1e-16))
     mu_Q = mu_Q + 1e-16 * (mu_Q < 1e-16)
     
-    # augmentation data: variable Q
+    #Q
     for (i in 1:n) {
       for (l in 1:(min(K[i], n_group - 1))) {
         if (l < K[i]) {
@@ -134,18 +122,18 @@ DDP_Y_4 <- function(c, data_sim, split_function) {
       }
     }
     
-    # eta = parameters in the probit regression in the weights
+    #eta
     check_q = sapply(1:(n_group - 1), function(l)
       length(Q[K >= l, l]))
-    v_eta = lapply(which(check_q > 2), function(l)
+    v_eta = lapply(which(check_q > 1), function(l)
       1 / eta_prior[2] + t(X_weights[K >= l, ]) %*% X_weights[K >= l, ])
-    m_eta = sapply(which(check_q > 2), function(l)
+    m_eta = sapply(which(check_q > 1), function(l)
       eta_prior[1] / eta_prior[2] +
         t(X_weights[K >= l, ]) %*% Q[K >= l, l] / gamma_y[l])
-    # each component has to have at least 3 units to estimate eta
-    if (any(check_q < 3)) {
-      for (l in which(check_q == 1 | check_q == 2)) {
-        v_eta[[l]] = diag(dim(X_weights)[2]) / eta_prior[2]
+    
+    if (any(check_q == 1)) {
+      for (l in which(check_q == 1)) {
+        v_eta[[l]] = diag(2) / eta_prior[2]
         m_eta = cbind(m_eta, rep(eta_prior[1] / eta_prior[2], 2))
       }
     }
@@ -156,16 +144,14 @@ DDP_Y_4 <- function(c, data_sim, split_function) {
     eta[, which(table_Ki[-n_group] == 0)] = rnorm(length(which(table_Ki[-n_group] ==
                                                                  0)) * 2, eta_prior[1], sqrt(eta_prior[2]))
     
-    ##############################################
-    # -------- 2: Component Allocation  ---------
-    ##############################################
     
-    #  tau = recursive weigths in the mixture
+    #tau ( recursive weigths in the mixture )
     eta_X = pnorm(cbind(X_weights %*% (eta[, 1]), X_weights %*% (eta[, 2])))
     for (g_k in 3:(n_group - 1)) {
       eta_X = cbind(eta_X, pnorm(X_weights %*% (eta[, g_k])))
     }
     eta_X = cbind(eta_X, 1)
+    
     tau_prov = cbind(
       eta_X[, 1] * dnorm(data_sim$Y, X_tilde %*% (alpha[, 1]), sqrt(gamma_y[1])),
       eta_X[, 2] * (1 - eta_X[, 1]) * dnorm(data_sim$Y, X_tilde %*%
@@ -184,19 +170,13 @@ DDP_Y_4 <- function(c, data_sim, split_function) {
       tau[i, ] = 1 / n_group
     }
     
-    # K = allocation component variables
-    # it says each unit in which component of the mixture is allocated
+    #K
     K = sapply(1:n, function(i)
       (1:n_group) %*% rmultinom(1, 1, tau[i, ]))
     table_Ki = rep(0, n_group)
     table_Ki[sort(unique(K))] = table(K)
     
-    ##############################################
-    # ------- 3: Regression mean of Y|X,Z  ------
-    ##############################################
-    
-    # alpha + gamma_y :
-    # parameters of the mean + variance in each mixture components of the distribution of Y|X,Z
+    #alpha + gamma_y ( parameters of the mean + variance in each cluster of the distribution of Y|X,Z )
     for (g_k in 1:n_group) {
       if (length(which(K == g_k)) == 1) {
         V = diag(3) / alpha_sigma + t(t(X_tilde[K == g_k, ])) %*% t(X_tilde[K ==
@@ -217,44 +197,54 @@ DDP_Y_4 <- function(c, data_sim, split_function) {
                                  G / 2)
     }
     
-    ##############################################
-    # --- Causal effects: parameters for CERF  ----
-    ##############################################
     
     #beta_x
     beta_x = alpha[2, ] - alpha[3, ] * delta[1, 2] / delta[1, 3]
+    #intercept=sapply(1:n_group, function(g)
+    #  mean(alpha[1,g]+alpha[3,g]*mean(data_sim$Z[K==g])+alpha[3,g]*delta[1,2]/delta[1,3]*mean(data_sim$X[K==g])))
     intercept = sapply(1:n_group, function(g)
       mean(
         alpha[1, g] + alpha[3, g] * mean(data_sim$Z) + alpha[3, g] * delta[1, 2] /
           delta[1, 3] * mean(data_sim$X)
       ))
     
-    # -----   saving information   -----
-    # parameters
+    
+    # ---------- save the chains  ------
     post_alpha[, r] = c(alpha)
     post_delta[, r] = delta[, 1:3]
     post_gamma_y[, r] = gamma_y
     post_gamma_w[r] = gamma_w
-    post_eta[, r] = c(eta)
-    # cluster allocation for each iteration
     K_all[, r] = K
-    # CERF parameters
     post_beta_x[, r] = beta_x
     post_intercept[, r] = intercept
+    post_eta[, r] = c(eta)
     
-    #
-    if (r %% 500 == 0)
-      print(paste0(r, "/", R, " iterations"))
+    #check
+    if (r %% 250 == 0)
+      print(r)
   }
   
-  print(paste0("sample ", c, " done"))
+  #post_K_part=partition.BNPdens(list(clust=t(K_all[,R_burnin:R])),dist = "VI")$partitions[1,]
+  #post_K_part_b=partition.BNPdens(list(clust=t(K_all[,R_burnin:R])),dist = "Binder")$partitions[1,]
+  #post_K_part_moda=apply(K_all[,R_burnin:R], 1, moda)
+  
   
   return(
     list(
-      post_alpha = post_alpha[, (R_burnin + 1):R],
-      post_beta_x = post_beta_x[, (R_burnin + 1):R],
-      post_intercept = post_intercept[, (R_burnin + 1):R],
-      post_eta = post_eta[, (R_burnin + 1):R]
+      post_delta = post_delta,
+      post_gamma_w = post_gamma_w,
+      post_alpha = post_alpha,
+      post_gamma_y = post_gamma_y,
+      post_beta_x = post_beta_x,
+      post_intercept = post_intercept,
+      post_lat_var_K = K_all[, (R_burnin + 1):R],
+      #post_K_part=post_K_part,
+      #post_K_part_b=post_K_part_b,
+      #post_K_part_moda=post_K_part_moda,
+      #post_beta_x_intercept_wg=post_beta_x_intercept(partition=post_K_part),
+      #post_beta_x_intercept_binder=post_beta_x_intercept(partition=post_K_part_b),
+      #post_beta_x_intercept_moda=post_beta_x_intercept(partition=post_K_part_moda),
+      post_eta = post_eta
     )
   )
 }
