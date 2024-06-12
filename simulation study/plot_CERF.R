@@ -65,7 +65,7 @@ ggplot_posterior <- function(data_sim,
     
   }
   
-  points_y_i <- funct_YU(points_x_i, mean(data_sim$U))
+  points_y_i <- funct_YU(points_x_i, data_sim$U)
   DB = as.data.frame(cbind(Treatment = data_sim$X,
                            Outcome = data_sim$Y))
   DB2 = as.data.frame(
@@ -137,7 +137,7 @@ plot_posterior<- function(data_sim,post_chian,funct_YU){
   # posterior median
   points(points_x_i,apply(points_y_iteractions, 2, median, na.rm=TRUE),  cex=0.5, pch=16, lwd = 0.5,col=rainbow(7)[6]) 
   # true
-  curve(funct_YU(x,mean(data_sim$U)), min(data_sim$X),max(data_sim$X), col="#900000",lwd=2, add=TRUE)
+  curve(funct_YU(x,data_sim$U), min(data_sim$X),max(data_sim$X), col="#900000",lwd=2, add=TRUE)
   # 95% CI
   polygon(c(points_x_i, rev(points_x_i)), 
           c(quantile_adj[1,], rev(quantile_adj[2,])),
