@@ -1,5 +1,5 @@
 ###################################################################################
-# ---                   Plots results                ---
+# ---                 Plots Functions                ---
 # ---                 SIMULATION STUDY               ----
 ###################################################################################
 
@@ -16,94 +16,242 @@ library(TeachingDemos)
 library(fanplot)
 library(ggfan)
 
-# load data
-load("results_model.RData")
-
 ###################################################################################
 # ---     VARIABILITY BOUND      ----
 ###################################################################################
 
-variability_bound<- function(data_sim,medians_x,medians_smooth,funct_int,title,num){
+ggplot_posterior <- function(data_sim,
+                             model_adj,
+                             x_split_method = "split_4quantile_x",
+                             probs = NULL,
+                             pts = NULL,
+                             n_group = 10,
+                             funct_YU,
+                             bandwidth = 0.2,
+                             smooth_curve = TRUE,
+                             num) {
   
-  points_x_i=medians_x
-  points_y=funct_int(points_x_i,data_sim[[1]]$U)
   
-  DB=as.data.frame(cbind(Treatment=rep(points_x_i, each=sample),
-                         Outcome=c(medians_smooth)))
+  # causal effect for a grid of points
+  points_x_i = seq(min(data_sim$X), max(data_sim$X), length.out = 200)
+  points_y_iteractions = sapply(points_x_i, function(x)
+    curve_ADJ(
+      x,
+      post_chain = model_adj,
+      training_data = data_sim,
+      x_split_method =  x_split_method,
+      probs = probs,
+      pts = pts,
+      n_group = n_group
+    ))
   
-  pdf(paste0("plot_",title,".pdf"),width=6, height=6)
-  gg<-ggplot(DB, aes(x=Treatment, y= Outcome)) + 
-    geom_fan() + 
-    geom_line(aes(rep(points_x_i,sample), rep(apply(medians_smooth,2,median),sample)),
-              size=1, col="#0C2AE8") +
-    geom_line(aes(rep(points_x_i,sample), rep(points_y,sample)),
-              size=0.7, col="red") +
-    theme(panel.background = element_rect(fill='white'),
-          plot.background = element_rect(fill ="white"),
-          #panel.grid.minor = element_line(color = "grey"),
-          axis.title = element_text(size=14),
-          legend.text=element_text(size=10),
-          legend.title = element_text(size=12),
-          plot.title = element_text(hjust = 0.5),
-          axis.text.x=element_text(size=14),
-          axis.text.y=element_text(size=14),
-          title =element_text(size=14),
-          legend.background = element_rect(fill='transparent'),
-          panel.grid.major = element_line(color = "grey",size = 0.1))+
-    scale_fill_gradient2(low="#0C2AE8", high="#DCF3F5", mid="#59C7FF", 
-                         midpoint=0.5, name="C.I.") +
-    #annotate("text", x=points_x_i[20], y=max(points_y,medians_smooth), 
-    #         label=paste0("Scenario ",num,""), size=5)+
-    ggtitle(paste0("Scenario ",num,""))
+  # plot
+  par(mfrow = c(1, 1), bg = "white")
+  # posterior median
+  if (smooth_curve) {
+    
+    smooth_values <- sapply(1:dim(points_y_iteractions)[1], function(i) {
+      ksmooth(points_x_i, points_y_iteractions[i, ],  "normal", bandwidth = bandwidth)$y
+    })
+    y_est = apply(t(smooth_values), 2, median, na.rm = TRUE)
+    lower95 <- apply(t(smooth_values), 2, quantile, prob = 0.05)
+    upper95 <- apply(t(smooth_values), 2, quantile, prob = 0.95)
+    
+  } else{
+    
+    y_est <- apply(points_y_iteractions, 2, median, na.rm = TRUE)
+    lower95 <- apply(points_y_iteractions, 2, quantile, prob = 0.05)
+    upper95 <- apply(points_y_iteractions, 2, quantile, prob = 0.95)
+    
+  }
+  
+  points_y_i <- funct_YU(points_x_i, mean(data_sim$U))
+  DB = as.data.frame(cbind(Treatment = data_sim$X,
+                           Outcome = data_sim$Y))
+  DB2 = as.data.frame(
+    cbind(
+      Treatment = points_x_i,
+      Outcome = y_est,
+      points_y_i = points_y_i,
+      lower95 = lower95,
+      upper95 = upper95
+    )
+  )
+  gg <- ggplot() +
+    geom_point(
+      data = DB,
+      aes(x = Treatment, y = Outcome),
+      size = 0.3,
+      col = "#D3D3D3"
+    ) +
+    geom_line(
+      data = DB2,
+      aes(x = Treatment, y = Outcome),
+      size = 1.5,
+      col = "#0C2AE8"
+    ) +
+    geom_line(
+      data = DB2,
+      aes(Treatment, points_y_i),
+      size = 1,
+      col = "red"
+    ) +
+    geom_ribbon(
+      data = DB2,
+      aes(x = Treatment, ymin = lower95, ymax = upper95),
+      color = "#59C7FF",
+      fill = "#59C7FF",
+      alpha = 0.5
+    ) +
+    theme(
+      panel.background = element_rect(fill = 'white'),
+      plot.background = element_rect(fill = "white"),
+      axis.title = element_text(size = 14),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 12),
+      plot.title = element_text(hjust = 0.5),
+      axis.text.x = element_text(size = 14),
+      axis.text.y = element_text(size = 14),
+      title = element_text(size = 14),
+      legend.background = element_rect(fill = 'transparent'),
+      panel.grid.major = element_line(color = "grey", size = 0.1)
+    ) +
+    ggtitle(paste0("Scenario ", num, ""))
   print(gg)
-  dev.off()
 }
 
 
-# print plots
-variability_bound(data_sim=data_sim_1,
-                         medians_x=median_1s_4q$x_points,
-                         medians_smooth=median_1s_4q$smooth02,
-                         funct_int=fun_Y_1_int,
-                         title="c1_4q", num=1)
-variability_bound(data_sim=data_sim_2,
-                         medians_x=median_2s_4q$x_points,
-                         medians_smooth=median_2s_4q$smooth02,
-                         funct_int=fun_Y_2_int,
-                         title="c2_4q", num=2)
-variability_bound(data_sim=data_sim_3,
-                         medians_x=median_3s_4q$x_points,
-                         medians_smooth=median_3s_4q$smooth02,
-                         funct_int=fun_Y_3_int,
-                         title="c3_4q", num=3)
-variability_bound(data_sim=data_sim_4,
-                         medians_x=median_4s_4q$x_points,
-                         medians_smooth=median_4s_4q$smooth02,
-                         funct_int=fun_Y_4_int,
-                         title="c4_4q", num=4)
+plot_posterior<- function(data_sim,post_chian,funct_YU){
+  
+  
+  # causal effect for a grid of points
+  points_x_i=seq(min(data_sim$X),max(data_sim$X),length.out=200)
+  points_y_iteractions=sapply(points_x_i, function(x) curve_chains(x,data_sim, post_chian))
+  quantile_adj=apply( points_y_iteractions,2,quantile, prob=c(0.05,0.95))
+  
+  # plot
+  par(mfrow=c(1,1),bg = "white")
+  # raw data
+  plot(data_sim$X,data_sim$Y,pch=19, cex=0.1, xlab="Treatment", ylab="Outcome", cex.lab =1.5, cex.axis =1.5, axes=T,  col = "#D3D3D3", 
+  )
+  # posterior median
+  points(points_x_i,apply(points_y_iteractions, 2, median, na.rm=TRUE),  cex=0.5, pch=16, lwd = 0.5,col=rainbow(7)[6]) 
+  # true
+  curve(funct_YU(x,mean(data_sim$U)), min(data_sim$X),max(data_sim$X), col="#900000",lwd=2, add=TRUE)
+  # 95% CI
+  polygon(c(points_x_i, rev(points_x_i)), 
+          c(quantile_adj[1,], rev(quantile_adj[2,])),
+          col = "#0078EF7D",border = "#0078EF7D")
+  grid(nx = NULL, ny = NULL,
+       lty = 2,      # Grid line type
+       col = "gray", # Grid line color
+       lwd = 2)
+}
 
 
- # plots in appendix
-variability_bound(data_sim=data_sim_1,
-                  medians_x=median_1s_6q$x_points,
-                  medians_smooth=median_1s_6q$smooth02,
-                  funct_int=fun_Y_1_int,
-                  title="c1_6q", num=1)
-variability_bound(data_sim=data_sim_2,
-                  medians_x=median_2s_6q$x_points,
-                  medians_smooth=median_2s_6q$smooth02,
-                  funct_int=fun_Y_2_int,
-                  title="c2_6q", num=2)
-variability_bound(data_sim=data_sim_3,
-                  medians_x=median_3s_6q$x_points,
-                  medians_smooth=median_3s_6q$smooth02,
-                  funct_int=fun_Y_3_int,
-                  title="c3_6q", num=3)
-variability_bound(data_sim=data_sim_4,
-                         medians_x=median_4s_6q$x_points,
-                         medians_smooth=median_4s_6q$smooth02,
-                         funct_int=fun_Y_4_int,
-                         title="c4_6q", num=4)
+ggplot_posterior_splitting <- function(data_sim,
+                                       model_adj,
+                                       x_split_method = "split_4quantile_x",
+                                       probs = NULL,
+                                       pts = NULL,
+                                       n_group = 10,
+                                       funct_YU,
+                                       bandwidth = 0.2,
+                                       smooth_curve = TRUE,
+                                       num) {
+  
+  
+  # causal effect for a grid of points
+  points_x_i = seq(min(data_sim$X), max(data_sim$X), length.out = 200)
+  points_y_iteractions = sapply(points_x_i, function(x)
+    curve_ADJ(
+      x,
+      post_chain = model_adj,
+      training_data = data_sim,
+      x_split_method =  x_split_method,
+      probs = probs,
+      pts = pts,
+      n_group = n_group
+    ))
+  
+  # plot
+  par(mfrow = c(1, 1), bg = "white")
+  # posterior median
+  if (smooth_curve) {
+    
+    smooth_values <- sapply(1:dim(points_y_iteractions)[1], function(i) {
+      ksmooth(points_x_i, points_y_iteractions[i, ],  "normal", bandwidth = bandwidth)$y
+    })
+    y_est = apply(t(smooth_values), 2, median, na.rm = TRUE)
+    lower95 <- apply(t(smooth_values), 2, quantile, prob = 0.05)
+    upper95 <- apply(t(smooth_values), 2, quantile, prob = 0.95)
+    
+  } else{
+    
+    y_est <- apply(points_y_iteractions, 2, median, na.rm = TRUE)
+    lower95 <- apply(points_y_iteractions, 2, quantile, prob = 0.05)
+    upper95 <- apply(points_y_iteractions, 2, quantile, prob = 0.95)
+    
+  }
+  
+  points_y_i <- funct_YU(points_x_i, mean(data_sim$U))
+  DB = as.data.frame(cbind(Treatment = data_sim$X,
+                           Outcome = data_sim$Y))
+  DB2 = as.data.frame(
+    cbind(
+      Treatment = points_x_i,
+      Outcome = y_est,
+      points_y_i = points_y_i,
+      lower95 = lower95,
+      upper95 = upper95
+    )
+  )
+  gg <- ggplot() +
+    geom_point(
+      data = DB,
+      aes(x = Treatment, y = Outcome),
+      size = 0.3,
+      col = "#D3D3D3"
+    ) +
+    geom_line(
+      data = DB2,
+      aes(x = Treatment, y = Outcome),
+      size = 1.5,
+      col = "#0C2AE8"
+    ) +
+    geom_line(
+      data = DB2,
+      aes(Treatment, points_y_i),
+      size = 1,
+      col = "red"
+    ) +
+    geom_ribbon(
+      data = DB2,
+      aes(x = Treatment, ymin = lower95, ymax = upper95),
+      color = "#59C7FF",
+      fill = "#59C7FF",
+      alpha = 0.5
+    ) +
+    theme(
+      panel.background = element_rect(fill = 'white'),
+      plot.background = element_rect(fill = "white"),
+      #panel.grid.minor = element_line(color = "grey"),
+      axis.title = element_text(size = 14),
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 12),
+      plot.title = element_text(hjust = 0.5),
+      axis.text.x = element_text(size = 14),
+      axis.text.y = element_text(size = 14),
+      title = element_text(size = 14),
+      legend.background = element_rect(fill = 'transparent'),
+      panel.grid.major = element_line(color = "grey", size = 0.1)
+    ) +
+    ggtitle(paste0("Scenario ", num, ""))
+  print(gg)
+}
+
+
+
 
 ###################################################################################
 # ---     PLOTS SIMULATION STUDIES - simulation plots      ----
