@@ -44,12 +44,6 @@ fun_Y_4_int <- function(X,U){
 }
 
 ###################################################################################
-# sample size
-
-n=6250      # correspond to 5000 points after cutting the tails due to sparsity
-
-
-###################################################################################
 
 # --- generation of samplers for the 4 settings ---
 
