@@ -5,16 +5,8 @@
 
 # library 
 library(ggplot2)
-library(GGally)
-library(hrbrthemes)
 library(mvtnorm)
 library(invgamma)
-library(BNPmix)
-library(truncnorm)
-library(ggrepel)
-library(TeachingDemos)
-library(fanplot)
-library(ggfan)
 
 ###################################################################################
 # ---     VARIABILITY BOUND      ----
