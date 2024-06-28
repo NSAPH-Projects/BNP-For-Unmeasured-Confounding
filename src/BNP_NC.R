@@ -27,9 +27,9 @@ DDP_ADJ <- function(s_seed = 1,
   # regression function for Y and W
   if (is.null(X_tilde)) {
     X_tilde = cbind(rep(1, n), data$X, data$Z)
-    X_W_reg = X_tilde
   }
-  
+
+  X_W_reg = X_tilde
   dim_REG = dim(X_tilde)[2]
   dim_W = dim(X_W_reg)[2]
   
