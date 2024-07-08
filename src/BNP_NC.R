@@ -1,7 +1,8 @@
 #################################################################################
-#  ----   code for:    ----
-#  - "DDP_ADJ" : Gibbs sampler for our proposed model
-#  - "curve_ADJ" : estimation of CERF with our proposed methods
+# ----  cod#################################################################################
+# ----  code for: ----
+# - "DDP_ADJ" : Gibbs sampler for our proposed model
+# - "curve_ADJ" : estimation of CERF with our proposed methods
 #################################################################################
 
 
@@ -22,14 +23,14 @@ DDP_ADJ <- function(s_seed = 1,
   # sample size
   n = dim(data)[1]
   
-  # ------   preparing variables   ------
+  # ------  preparing variables  ------
   
   # regression function for Y and W
   if (is.null(X_tilde)) {
     X_tilde = cbind(rep(1, n), data$X, data$Z)
-    X_W_reg = X_tilde
   }
   
+  X_W_reg = X_tilde
   dim_REG = dim(X_tilde)[2]
   dim_W = dim(X_W_reg)[2]
   
@@ -43,17 +44,15 @@ DDP_ADJ <- function(s_seed = 1,
     X_weights = split_at_fixed_pt(data$X, pts = pts)
   } else if (X_split_method == "split_4quantile") {
     X_weights = split_4quantile(data$X)
-  } else if (X_split_method == "split_4quantile_centered") {
-    X_weights = split_4quantile_centered(data$X)
   } else {
     print ("not supported")
   }
   
-
-
-    dim_Xw = dim(X_weights)[2]
-
-  # ------   hyperparameters   -----
+  
+  
+  dim_Xw = dim(X_weights)[2]
+  
+  # ------  hyperparameters  -----
   
   # alpha = parameters of the regression mean in the components of Y|X,Z mixture
   # mu(=mean) and sigma(=var) for the normal prior for alpha
@@ -75,7 +74,7 @@ DDP_ADJ <- function(s_seed = 1,
   # eta = parameters in the probit regression in the weights
   eta_prior = c(-1, 5)
   
-  # ------   initialization   -----
+  # ------  initialization  -----
   
   # parameters
   alpha = matrix(rep(rmvnorm(
@@ -87,7 +86,7 @@ DDP_ADJ <- function(s_seed = 1,
   gamma_y = rep(rinvgamma(1, gamma_y_prior[1], gamma_y_prior[2]), n_group)
   gamma_w = rinvgamma(1, gamma_w_prior[1], gamma_w_prior[2])
   eta = matrix(
-    rnorm((n_group - 1) *  dim_Xw, eta_prior[1], eta_prior[2]),
+    rnorm((n_group - 1) * dim_Xw, eta_prior[1], eta_prior[2]),
     ncol = n_group - 1,
     nrow = dim_Xw
   )
@@ -117,7 +116,7 @@ DDP_ADJ <- function(s_seed = 1,
   # causal effect parameter
   beta_x = rep(0, n_group)
   
-  # ------   saving information   -----
+  # ------  saving information  -----
   
   # empty matrix where save all the informations for each iteration
   post_alpha = matrix(NA, nrow = n_group * dim_REG, ncol = R)
@@ -130,24 +129,24 @@ DDP_ADJ <- function(s_seed = 1,
   
   for (r in 1:R) {
     #######################################################
-    # -----  estimation parameter for W|X,Z model  ------
+    # ----- estimation parameter for W|X,Z model ------
     #######################################################
     
-    #delta  ( parameters of the mean in the distribution of W|X,Z )
+    #delta ( parameters of the mean in the distribution of W|X,Z )
     V_delta = diag(dim_W) / delta_sigma + t(X_W_reg) %*% X_W_reg / gamma_w
     m_delta = delta_mu / delta_sigma + t(X_W_reg) %*% data$W /
       gamma_w
     delta = rmvnorm(1, solve(V_delta) %*% m_delta, solve(V_delta))
     
-    #gamma_w    ( parameter of the variance in the distribution of W|X,Z )
+    #gamma_w ( parameter of the variance in the distribution of W|X,Z )
     g_w = sum((data$W - X_W_reg %*% t(delta)) ^ 2)
     gamma_w = rinvgamma(1, gamma_w_prior[1] + n / 2, gamma_w_prior[2] +
                           g_w / 2)
     
     #######################################################
-    # -----  estimation parameter for Y|X,Z model  ------
+    # ----- estimation parameter for Y|X,Z model ------
     #######################################################
-    # ---- 1: Mixture Component Specific Parameters  ----
+    # ---- 1: Mixture Component Specific Parameters----
     #######################################################
     
     # compute eta (regression parameters in the weights)
@@ -179,18 +178,19 @@ DDP_ADJ <- function(s_seed = 1,
     }
     
     # eta = parameters in the probit regression in the weights
+    v_eta = list()
+    m_eta = matrix(NA, nrow=dim_Xw, ncol= n_group-1)
     check_q = sapply(1:(n_group - 1), function(l)
       length(Q[K >= l, l]))
-    v_eta = lapply(which(check_q > 1), function(l)
-      1 / eta_prior[2] + t(X_weights[K >= l, ]) %*% X_weights[K >= l, ])
-    m_eta = sapply(which(check_q > 1), function(l)
-      eta_prior[1] / eta_prior[2] +
-        t(X_weights[K >= l, ]) %*% Q[K >= l, l] / gamma_y[l])
-    # if eta's dimension is p then we have to have at least p units to estimate eta
-    if (any(check_q < dim_Xw)) {
-      for (l in which(check_q %in% 1:(dim_Xw-1))){
+    for (l in 1:(n_group - 1) ){
+      if (check_q[l] > (dim_Xw+1)){
+        v_eta[[l]] = 1 / eta_prior[2] + t(X_weights[K >= l, ]) %*% X_weights[K >= l, ]
+        m_eta[,l] = eta_prior[1] / eta_prior[2] +
+          t(X_weights[K >= l, ]) %*% Q[K >= l, l] / gamma_y[l]
+      }else{
+        # if eta's dimension is p then we have to have at least p units to estimate eta
         v_eta[[l]] = diag(dim_Xw) / eta_prior[2]
-        m_eta = cbind(m_eta, rep(eta_prior[1] / eta_prior[2], dim_Xw))
+        m_eta[,l] = rep(eta_prior[1] / eta_prior[2], dim_Xw)
       }
     }
     eta[, which(table_Ki[-n_group] > 0)] = sapply(which(table_Ki[-n_group] >
@@ -204,10 +204,10 @@ DDP_ADJ <- function(s_seed = 1,
     
     
     ##############################################
-    # -------- 2: Component Allocation  ---------
+    # -------- 2: Component Allocation ---------
     ##############################################
     
-    #  tau = recursive weigths in the mixture
+    # tau = recursive weigths in the mixture
     eta_X = pnorm(cbind(X_weights %*% (eta[, 1]), X_weights %*% (eta[, 2])))
     for (g_k in 3:(n_group - 1)) {
       eta_X = cbind(eta_X, pnorm(X_weights %*% (eta[, g_k])))
@@ -238,7 +238,7 @@ DDP_ADJ <- function(s_seed = 1,
     table_Ki[sort(unique(K))] = table(K)
     
     ##############################################
-    # ------- 3: Regression mean of Y|X,Z  ------
+    # ------- 3: Regression mean of Y|X,Z  ------
     ##############################################
     
     # alpha + gamma_y :
@@ -265,7 +265,7 @@ DDP_ADJ <- function(s_seed = 1,
     
     
     ##############################################
-    # --- Causal effects: parameters for CERF  ----
+    # --- Causal effects: parameters for CERF ----
     ##############################################
     
     #beta_x + intercept
@@ -285,7 +285,7 @@ DDP_ADJ <- function(s_seed = 1,
           sum(alpha[4:dim_REG, g] * apply(X_tilde[, 4:dim_REG], 2, mean)))
     }
     
-    # -----   saving information   -----
+    # -----   saving information   -----
     # parameters
     post_alpha[, r] = c(alpha)
     post_delta[, r] = delta[, 1:dim_W]
@@ -331,8 +331,6 @@ curve_ADJ <- function(x,
     X_weights = split_at_fixed_pt_x(training_data$X, x, pts = pts)
   } else if (x_split_method == "split_4quantile_x") {
     X_weights = split_4quantile_x(training_data$X, x)
-  } else if (x_split_method == "split_4quantile_centered_x") {
-    X_weights = split_4quantile_centered_x(training_data$X, x)
   } else {
     print("the given weight prior is not supported")
   }
