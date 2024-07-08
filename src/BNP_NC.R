@@ -29,7 +29,7 @@ DDP_ADJ <- function(s_seed = 1,
   if (is.null(X_tilde)) {
     X_tilde = cbind(rep(1, n), data$X, data$Z)
   }
-  
+
   X_W_reg = X_tilde
   dim_REG = dim(X_tilde)[2]
   dim_W = dim(X_W_reg)[2]
@@ -285,7 +285,7 @@ DDP_ADJ <- function(s_seed = 1,
           sum(alpha[4:dim_REG, g] * apply(X_tilde[, 4:dim_REG], 2, mean)))
     }
     
-    # -----   saving information   -----
+    # -----  saving information  -----
     # parameters
     post_alpha[, r] = c(alpha)
     post_delta[, r] = delta[, 1:dim_W]
